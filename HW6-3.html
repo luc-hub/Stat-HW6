@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Probability Interval Histogram</title>
+    <style>
+        h1 { color: #e91010; }
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        label {
+            font-size: 18px;
+            color: #555;
+            margin-right: 10px;
+        }
+        input[type="number"] {
+            padding: 8px;
+            margin: 0 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            width: 80px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            background-color: white;
+            margin-top: 30px;
+        }
+        .formula {
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: 1.1em;
+            font-style: italic;
+            text-align: center;
+            margin: 1em 0;
+            padding: 0.5em;
+            color: #000000;
+            
+            border-radius: 5px;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: Consolas, 'Courier New', monospace;
+        }
+    </style>
+    <script type="text/javascript" src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script type="text/javascript" id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+</head>
+<body>
+
+<h2>Probability Interval Histogram</h2>
+
+<div class="controls">
+    <label for="numPoints">Number of Draws (n):</label>
+    <input type="number" id="numPoints" value="100" min="1" max="1000">
+    <label for="numIntervals">Number of Intervals:</label>
+    <input type="number" id="numIntervals" value="7" min="1" max="10" onchange="createIntervalInputs()">
+    <div id="intervalInputs"></div>
+</div>
+
+<button onclick="simulate()">Simulate</button>
+
+<canvas id="graphCanvas" width="1100" height="900"></canvas>
+
+<script>
+    const canvas = document.getElementById('graphCanvas');
+    const ctx = canvas.getContext('2d');
+    const margin = 60;
+
+    function createIntervalInputs() {
+        const numIntervals = parseInt(document.getElementById('numIntervals').value);
+        const intervalInputs = document.getElementById('intervalInputs');
+        intervalInputs.innerHTML = '';
+
+        for (let i = 0; i < numIntervals - 1; i++) {
+            const label = document.createElement('label');
+            label.innerText = `Interval Boundary ${i + 1} (0 to 1):`;
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = `P${i + 1}`;
+            input.value = (i + 1) / numIntervals;
+            input.step = "0.01";
+            input.min = "0";
+            input.max = "1";
+            intervalInputs.appendChild(label);
+            intervalInputs.appendChild(input);
+        }
+    }
+
+    function drawAxes() {
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(margin, height - margin - 100);
+        ctx.lineTo(width - margin, height - margin - 100);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(margin, margin);
+        ctx.lineTo(margin, height - margin - 100);
+        ctx.stroke();
+
+        ctx.font = '18px Arial';
+        ctx.fillStyle = 'black';
+
+        ctx.fillText('Probability', width / 2 - 110, height - 100);
+        ctx.save();
+        ctx.translate(20, height / 2 - 50);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Occurrences', 0, 25);
+        ctx.restore();
+    }
+
+    function simulate() {
+        const numPoints = parseInt(document.getElementById('numPoints').value);
+        const numIntervals = parseInt(document.getElementById('numIntervals').value);
+
+        const intervals = [0];
+        for (let i = 0; i < numIntervals - 1; i++) {
+            const value = parseFloat(document.getElementById(`P${i + 1}`).value);
+            intervals.push(value);
+        }
+        intervals.push(1);
+        intervals.sort((a, b) => a - b);
+
+        const counts = new Array(numIntervals).fill(0);
+
+        let mean = 0;
+        let variance = 0;
+
+        for (let i = 0; i < numPoints; i++) {
+            const rand = Math.random();
+            for (let j = 0; j < numIntervals; j++) {
+                if (rand >= intervals[j] && rand < intervals[j + 1]) {
+                    counts[j]++;
+                    break;
+                }
+            }
+
+            // Aggiornamento ricorsivo di media e varianza
+            const delta = rand - mean;
+            mean += delta / (i + 1);
+            variance += delta * (rand - mean);
+        }
+        variance /= numPoints;
+
+        drawAxes();
+        drawHistogram(counts, intervals);
+        displayStatistics(mean, variance);
+    }
+
+    function drawHistogram(counts, intervals) {
+        const width = canvas.width - 2 * margin;
+        const height = canvas.height - 2 * margin - 100;
+        const maxCount = Math.max(...counts);
+
+        ctx.fillStyle = 'blue';
+        for (let i = 0; i < counts.length; i++) {
+            const barWidth = width / counts.length;
+            const barHeight = (counts[i] / maxCount) * height;
+
+            const x = margin + i * barWidth;
+            const y = canvas.height - margin - barHeight - 100;
+
+            ctx.fillRect(x, y, barWidth - 5, barHeight);
+            ctx.fillStyle = 'black';
+            ctx.fillText(`[${intervals[i].toFixed(2)}, ${intervals[i + 1].toFixed(2)})`, x, canvas.height - margin + 20 - 100);
+            ctx.fillText(counts[i], x + barWidth / 2 - 10, y - 10);
+            ctx.fillStyle = 'blue';
+        }
+    }
+
+    function displayStatistics(mean, variance) {
+        const theoreticalMean = 0.5;
+        const theoreticalVariance = 1 / 12;
+
+        ctx.font = '16px Arial';
+        ctx.fillStyle = 'black';
+
+        ctx.fillText(`Calculated Mean: ${mean.toFixed(4)}`, margin, canvas.height - 40);
+        ctx.fillText(`Calculated Variance: ${variance.toFixed(4)}`, margin, canvas.height - 20);
+        ctx.fillText(`Theoretical Mean: ${theoreticalMean.toFixed(4)}`, canvas.width / 2, canvas.height - 40);
+        ctx.fillText(`Theoretical Variance: ${theoreticalVariance.toFixed(4)}`, canvas.width / 2, canvas.height - 20);
+    }
+
+    createIntervalInputs();
+</script>
+
+<!-- Additional Text Section -->
+
+<div style="margin-top: 30px; text-align: left; max-width: 800px;">
+
+    <h1>Difference Between Calculated and Theoretical Mean and Variance</h1>
+    
+    <p>The calculated and theoretical means and variances can differ primarily due to <strong>random variability</strong> and the <strong>sample size</strong> used in the simulation. Here’s a closer look at these differences:</p>
+
+    <h2>1. Difference between Calculated Mean and Theoretical Mean</h2>
+    <ul>
+        <li><strong>Theoretical Mean</strong>: In the case of random numbers generated uniformly between 0 and 1, the theoretical mean is 0.5, since each value within this interval is equally likely.</li>
+        <li><strong>Calculated Mean</strong>: When calculating the empirical mean of generated random numbers, it only approaches the theoretical value of 0.5 if the sample size is large. For smaller samples, however, the calculated mean may differ significantly from the theoretical one. This happens due to <strong>statistical fluctuation</strong> or <strong>noise</strong>: random samples do not always perfectly represent the theoretical distribution.</li>
+    </ul>
+
+    <h2>2. Difference between Calculated Variance and Theoretical Variance</h2>
+    <ul>
+        <li><strong>Theoretical Variance</strong>: The theoretical variance of a uniform distribution on [0,1] is \( \sigma^2 = \frac{1}{12} \approx 0.0833 \). This is because the uniform distribution has an even spread around the theoretical mean of 0.5.</li>
+        <li><strong>Calculated Variance</strong>: The empirically calculated variance tends to converge toward the theoretical value of 0.0833 as the sample size increases. However, with smaller samples, this variance can differ significantly from the theoretical value due to random fluctuations in the generated values, leading to different concentration ranges around the mean than in an ideal uniform distribution.</li>
+    </ul>
+    
+    <h2>Effect of Sample Size</h2>
+    <p>As the sample size increases (e.g., going from 100 to 1000 samples or more), both the calculated mean and variance tend to stabilize around their theoretical values (<em>law of large numbers</em>). In other words, the larger the sample, the closer the empirical mean and variance are expected to converge to the theoretical values:</p>
+    <ul>
+        <li><strong>Mean</strong>: Becomes increasingly close to 0.5 as the mean error reduces.</li>
+        <li><strong>Variance</strong>: Similarly, the calculated variance approaches 0.0833, reducing the effect of random fluctuations.</li>
+    </ul>
+
+    <h2>Why This Comparison is Useful</h2>
+    <p>Comparing the calculated mean and variance with their theoretical values helps to understand <strong>how well</strong> a set of generated random numbers represents the ideal uniform distribution and to <strong>quantify</strong> the accuracy of a simulation with a given sample size.</p>
+
+    <!-- -->
+    
+    <h1>Fundamental Theorem of Calculus and Relationship with PDF and CDF</h1>
+
+    <p>The <strong>Fundamental Theorem of Calculus</strong> establishes a critical connection between differentiation and integration, and plays an essential role in probability theory, particularly in understanding the relationship between <strong>probability density functions</strong> (PDFs) and <strong>cumulative distribution functions</strong> (CDFs).</p>
+
+    <h2>Statement of the Fundamental Theorem of Calculus</h2>
+
+    <p>If \( f(x) \) is continuous over an interval <code>[a, b]</code>, and \( F(x) \) is an antiderivative of \( f(x) \) on <code>[a, b]</code> (meaning \( F'(x) = f(x) \)), then:</p>
+
+    <p class="formula">∫<sub>a</sub><sup>b</sup> f(x) dx = F(b) - F(a)</p>
+
+    <p>In other words, the integral of \( f(x) \) over <code>[a, b]</code> can be found by evaluating its antiderivative \( F(x) \) at the endpoints of the interval.</p>
+
+    <h2>Probability Density Function (PDF) and Cumulative Distribution Function (CDF)</h2>
+
+    <p>In probability theory:</p>
+
+    <ul>
+        <li>A <strong>probability density function</strong> (PDF), denoted by \( f(x) \), describes the likelihood of different outcomes for a continuous random variable \( X \). For \( f(x) \) to be a valid PDF, it must satisfy:
+            <ul>
+                <li>f(x) ≥ 0</li>
+                <li>∫<sub>-∞</sub><sup>∞</sup> f(x) dx = 1</li>
+            </ul>
+        </li>
+        <li>A <strong>cumulative distribution function</strong> (CDF), denoted by \( F(x) \), represents the probability that \( X \) takes a value less than or equal to \( x \):
+            <p class="formula">F(x) = ∫<sub>-∞</sub><sup>x</sup> f(t) dt</p>
+        </li>
+    </ul>
+
+    <h2>Relationship Between PDF and CDF Using the Fundamental Theorem of Calculus</h2>
+
+    <p>By the fundamental theorem of calculus, if \( F(x) \) is defined as the integral of \( f(x) \) up to \( x \):</p>
+
+    <p class="formula">F(x) = ∫<sub>-∞</sub><sup>x</sup> f(t) dt</p>
+
+    <p>then \( F(x) \) is the antiderivative of \( f(x) \), and hence the derivative of \( F(x) \) with respect to \( x \) gives us \( f(x) \):</p>
+
+    <p class="formula">F'(x) = f(x)</p>
+
+    <p>This relationship has important implications in probability:</p>
+
+    <ol>
+        <li><strong>From CDF to PDF:</strong> If we know the CDF \( F(x) \) of a continuous random variable \( X \), we can obtain its PDF \( f(x) \) by differentiating \( F(x) \):
+            <p class="formula">f(x) = d/dx F(x)</p>
+        </li>
+        <li><strong>From PDF to CDF:</strong> If we know the PDF \( f(x) \), we can find the CDF \( F(x) \) by integrating \( f(x) \) from <code>-∞</code> to \( x \):
+            <p class="formula">F(x) = ∫<sub>-∞</sub><sup>x</sup> f(t) dt</p>
+        </li>
+    </ol>
+
+    <h2>Example</h2>
+
+    <p>Suppose \( X \) is a continuous random variable with PDF \( f(x) = e^{-x} \) for \( x ≥ 0 \) and \( f(x) = 0 \) for \( x < 0 \). Then, the CDF \( F(x) \) is given by:</p>
+
+    <p class="formula">F(x) = ∫<sub>-∞</sub><sup>x</sup> f(t) dt = ∫<sub>0</sub><sup>x</sup> e<sup>-t</sup> dt = 1 - e<sup>-x</sup> (for x ≥ 0)</p>
+
+    <p>Taking the derivative of \( F(x) \) gives us back \( f(x) \):</p>
+
+    <p class="formula">F'(x) = e<sup>-x</sup> = f(x) (for x ≥ 0)</p>
+
+    <h2>Summary</h2>
+
+    <p>The Fundamental Theorem of Calculus links the PDF and CDF of a continuous random variable by showing that:</p>
+
+    <ul>
+        <li>The CDF \( F(x) \) can be obtained by integrating the PDF \( f(x) \) up to \( x \).</li>
+        <li>The PDF \( f(x) \) can be obtained by differentiating the CDF \( F(x) \).</li>
+    </ul>
+
+    <p>This relationship is foundational in probability and statistics, as it allows us to move between cumulative probabilities and point probabilities for continuous distributions.</p>
+
+</div>
+
+<div style="margin-top: 30px; text-align: left; max-width: 800px;"></div>
+
+</div>
+</body>
+</html>
